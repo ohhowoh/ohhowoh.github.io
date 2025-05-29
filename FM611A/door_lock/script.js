@@ -95,20 +95,39 @@ async function recognizeFaces() {
     return faceMatcher.findBestMatch(d.descriptor)
   })
 
-  results.forEach((result, i) => {
-    console.log(results[i]["label"])     // 顯示所有偵測到的名稱
-    lab = parseFloat(labels.indexOf(results[i]["label"]))
-    dis = parseFloat(results[i]["distance"])
-    console.log(lab + dis)
+// 將辨識成功的人名存起來
+let matchedLabels = new Set();
 
- if (lab != "unknown" && dis < 0.4){
-      $.get(board_url + 'open');
-    }
+results.forEach((result, i) => {
+  const label = result.label;
+  const distance = result.distance;
 
-    const box = resizedDetections[i].detection.box
-    const drawBox = new faceapi.draw.DrawBox(box, { label: result })
-    drawBox.draw(canvas)
-  })
+  console.log(`辨識結果: ${label}, 相似度: ${distance}`);
+
+  if (label !== "unknown" && distance < 0.4) {
+    matchedLabels.add(label);
+  }
+
+  const box = resizedDetections[i].detection.box;
+  const drawBox = new faceapi.draw.DrawBox(box, { label: result.toString() });
+  drawBox.draw(canvas);
+});
+
+// 設定兩人名單
+const requiredPeople = new Set(["Teddy", "Chuan"]);
+
+let allMatched = true;
+requiredPeople.forEach((person) => {
+  if (!matchedLabels.has(person)) {
+    allMatched = false;
+  }
+});
+
+if (allMatched) {
+  console.log("所有指定人員皆通過辨識，開啟門鎖！");
+  $.get(board_url + 'open');
+}
+
   setTimeout(async () => {
     canvas.getContext('2d').clearRect(0, 0, canvas.width, canvas.height)
   }, 1000)
