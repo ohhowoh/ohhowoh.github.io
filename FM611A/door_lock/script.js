@@ -134,8 +134,8 @@ if (allMatched) {
 }
 
 $('#identify').click((e) => {
-  console.log("直接開門");
-  $.get(board_url + 'open');
+  console.log("辨識")
+  recognizeFaces();
 });
 
 function loadLabel() {
