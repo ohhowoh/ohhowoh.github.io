@@ -1,7 +1,7 @@
 // 儲存 cookie(cookie的名字、cookie的值、儲存的天數)
 function setCookie(cname, cvalue, exdays) {
   let d = new Date();
-  d.setTime(d.getTime() + (exdays * 24 * 60 * 60 * 1000 + 8 * 60 * 60 * 1000));   // 因為是毫秒, 所以要乘以1000
+  d.setTime(d.getTime() + (exdays * 24 * 60 * 60 * 1000 + 8 * 60 * 60 * 1000)); // 因為是毫秒, 所以要乘以1000
   let expires = "expires=" + d.toGMTString();
   document.cookie = cname + "=" + cvalue + "; " + expires;
 }
@@ -22,20 +22,18 @@ const video1 = document.getElementById('inputVideo')
 const idn = document.getElementById('identify')
 const board_url = document.referrer;
 
-// 取得人名, 要與 images 下的資料夾名稱相同 
+// 取得人名
 let labelStr = getCookie("labelStr");
 if (labelStr == "") labelStr = "Teddy,Chuan";
 labelStr = prompt("請輸入名稱並以逗號隔開人名:", labelStr);
 let labels = labelStr.toString().split(",")
 
-// 讓輸入框圓角一點  需要 jquery-ui.min.js 和 jquery-ui.min.css
+// 讓輸入框圓角一點
 $('input:text').addClass("ui-widget ui-widget-content ui-corner-all ui-textfield");
 
 Promise.all([
-  // 顯示模型載入中的 gif 動畫
   mask.style.display = "block",
   loadImg.style.display = "block",
-  // 載入模型
   faceapi.nets.ssdMobilenetv1.loadFromUri('./models'),
   faceapi.nets.faceRecognitionNet.loadFromUri('./models'),
   faceapi.nets.faceLandmark68Net.loadFromUri('./models'),
@@ -43,15 +41,11 @@ Promise.all([
 ]).then(startVideo)
 
 async function startVideo() {
-  await navigator.mediaDevices.getUserMedia({ video: {} },) // 前鏡頭
-  // await navigator.mediaDevices.getUserMedia({ 
-  //   video: { facingMode: { exact: "environment" } } },  // 後鏡頭
-  //   )
+  await navigator.mediaDevices.getUserMedia({ video: {} })
     .then(function (stream) {
       video1.srcObject = stream;
     })
   await video1.play();
-  // 讀取照片
   initRecognizeFaces()
 }
 
@@ -61,7 +55,7 @@ let canvas;
 let detections;
 let resizedDetections;
 let results;
-let init = false;
+let displaySize;
 
 function changeCanvasSize() {
   canvas.style.width = video1.offsetWidth.toString() + "px"
@@ -73,10 +67,7 @@ function changeCanvasSize() {
 }
 
 async function initRecognizeFaces() {
-  console.log(init)
   labeledDescriptors = await loadLabel()
-  // 描述標籤
-  console.log(labeledDescriptors)
   faceMatcher = new faceapi.FaceMatcher(labeledDescriptors, 0.7)
   canvas = faceapi.createCanvasFromMedia(video1)
   document.body.append(canvas)
@@ -95,88 +86,76 @@ async function recognizeFaces() {
     return faceMatcher.findBestMatch(d.descriptor)
   })
 
-// 將辨識成功的人名存起來
-let matchedLabels = new Set();
+  // 建立辨識成功者的名單
+  let matchedLabels = new Set();
 
-results.forEach((result, i) => {
-  const label = result.label;
-  const distance = result.distance;
+  results.forEach((result, i) => {
+    const label = result.label;
+    const distance = result.distance;
 
-  console.log(`辨識結果: ${label}, 相似度: ${distance}`);
+    console.log(`辨識結果: ${label}, 相似度: ${distance}`);
+    if (label !== "unknown" && distance < 0.4) {
+      matchedLabels.add(label);
+    }
 
-  if (label !== "unknown" && distance < 0.4) {
-    matchedLabels.add(label);
+    const box = resizedDetections[i].detection.box
+    const drawBox = new faceapi.draw.DrawBox(box, { label: result.toString() })
+    drawBox.draw(canvas)
+  })
+
+  // 指定需要同時通過的人名
+  const requiredPeople = new Set(["Teddy", "Chuan"]);
+
+  let allMatched = true;
+  requiredPeople.forEach(person => {
+    if (!matchedLabels.has(person)) {
+      allMatched = false;
+    }
+  });
+
+  if (allMatched) {
+    console.log("所有指定人員皆通過辨識，開啟門鎖！");
+    $.get(board_url + 'open');
+  } else {
+    console.log("尚未全部通過辨識，門鎖未開啟。");
   }
 
-  const box = resizedDetections[i].detection.box;
-  const drawBox = new faceapi.draw.DrawBox(box, { label: result.toString() });
-  drawBox.draw(canvas);
-});
-
-// 設定兩人名單
-const requiredPeople = new Set(["Teddy", "Chuan"]);
-
-let allMatched = true;
-requiredPeople.forEach((person) => {
-  if (!matchedLabels.has(person)) {
-    allMatched = false;
-  }
-});
-
-if (allMatched) {
-  console.log("所有指定人員皆通過辨識，開啟門鎖！");
-  $.get(board_url + 'open');
-}
-
-  setTimeout(async () => {
+  setTimeout(() => {
     canvas.getContext('2d').clearRect(0, 0, canvas.width, canvas.height)
   }, 1000)
 }
 
 $('#identify').click((e) => {
-  console.log("辨識")
+  console.log("辨識中...");
   recognizeFaces();
 });
 
 function loadLabel() {
   let labels_len = labels.length;
-  let succ = true;
   return Promise.all(
     labels.map(async (label) => {
-      console.log(label)
       const descriptions = []
-      let imgFileName
       for (let i = 1; i <= 3; i++) {
+        let img;
         try {
-          imgFileName = `images/${label}/${i}.jpg`;
-          img = await faceapi.fetchImage(imgFileName)
-        }
-        catch (e) {
-          imgFileName = `images/${label}/${i}.png`;
-          console.log("換PNG啦")
+          img = await faceapi.fetchImage(`images/${label}/${i}.jpg`)
+        } catch {
           try {
-            img = await faceapi.fetchImage(imgFileName)
-          }
-          catch (err) {
-            console.log("錯誤啊!!!")
-            alert("名稱有誤, 請重新確認!!");
-            // 重新載入網頁, 讓使用者可重新輸入人名
+            img = await faceapi.fetchImage(`images/${label}/${i}.png`)
+          } catch {
+            alert("名稱有誤或圖片錯誤, 請重新確認!!");
             window.location.reload()
           }
         }
         const detections = await faceapi.detectSingleFace(img).withFaceLandmarks().withFaceDescriptor()
         if (detections) {
-          console.log(imgFileName + " OK");
           descriptions.push(detections.descriptor)
-        }
-        else {
-          console.log(imgFileName + " Error");
-          alert(`無法提取 ${imgFileName} 的人臉特徵, 請更換照片後再試試看！`)
+        } else {
+          alert(`無法提取 ${label} 的第 ${i} 張人臉特徵, 請更換照片再試試看！`)
         }
       }
       labels_len--
       if (labels_len == 0) {
-        // 成功載入所有照片, 表示輸入的人名正確, 儲存到 cookie 中
         setCookie("labelStr", labelStr, 30);
       }
       return new faceapi.LabeledFaceDescriptors(label, descriptions)
@@ -184,7 +163,6 @@ function loadLabel() {
   )
 }
 
-// 取得元素位置
 function getPosition(element) {
   let x = 0;
   let y = 0;
