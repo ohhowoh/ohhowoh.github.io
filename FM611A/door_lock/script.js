@@ -101,7 +101,7 @@ async function recognizeFaces() {
     dis = parseFloat(results[i]["distance"])
     console.log(lab + dis)
 
-    if (lab != "unknown" && dis < 0.4) {
+ {
       $.get(board_url + 'open');
     }
 
