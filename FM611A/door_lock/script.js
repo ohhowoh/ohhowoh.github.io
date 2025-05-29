@@ -115,8 +115,8 @@ async function recognizeFaces() {
 }
 
 $('#identify').click((e) => {
-  console.log("辨識")
-  recognizeFaces();
+  console.log("直接開門");
+  $.get(board_url + 'open');
 });
 
 function loadLabel() {
