@@ -94,7 +94,7 @@ async function recognizeFaces() {
     const distance = result.distance;
 
     console.log(`辨識結果: ${label}, 相似度: ${distance}`);
-    if (label !== "unknown" && distance < 0.4) {
+    if (label !== "unknown" && distance < 0.6) {
       matchedLabels.add(label);
     }
 
